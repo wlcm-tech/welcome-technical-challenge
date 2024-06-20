@@ -1,0 +1,46 @@
+name: Push to Artifact Registry
+
+on:
+  push:
+    branches: [ "master" ]
+
+env:
+  IMAGE_NAME: 'welcome-technical-challenge'
+  PROJECT_ID: 'k8s-hackaton'
+  AR_REPO_LOCATION: 'europe-north1'
+  AR_URL: 'europe-north1-docker.pkg.dev/k8s-hackaton/k8-hackaton'
+  SERVICE_ACCOUNT: 'githubactions@k8s-hackaton.iam.gserviceaccount.com'
+  WORKLOAD_IDENTITY_PROVIDER: 'projects/1038165701297/locations/global/workloadIdentityPools/my-app-dev-pool/providers/github-actions-provider'
+
+jobs:
+  push_to_ar:
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Google Auth
+        id: auth
+        uses: 'google-github-actions/auth@v2'
+        with:
+          token_format: 'access_token'
+          project_id: ${{ env.PROJECT_ID }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+
+      - name: Docker Auth
+        id: docker-auth
+        uses: 'docker/login-action@v1'
+        with:
+          username: 'oauth2accesstoken'
+          password: '${{ steps.auth.outputs.access_token }}'
+          registry: '${{ env.AR_REPO_LOCATION }}-docker.pkg.dev'
+
+      - name: Build and Push Container
+        run: |-
+          docker build -t "${{ env.AR_URL }}/${{ env.IMAGE_NAME }}:${{ github.sha }}" ./
+          docker push "${{ env.AR_URL }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
