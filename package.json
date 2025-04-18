@@ -15,7 +15,7 @@
     "@nuxtjs/google-fonts": "^3.2.0",
     "@pinia/nuxt": "^0.5.1",
     "mongoose": "^8.3.0",
-    "next-auth": "4.21.1",
+    "next-auth": "4.24.5",
     "nuxt": "^3.11.2",
     "nuxt-server-utils": "^0.0.7",
     "pinia-plugin-persistedstate": "^3.2.1",
