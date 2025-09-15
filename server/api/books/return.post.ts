@@ -1,18 +1,45 @@
 import { User } from "~~/server/models/user.model";
 import { getServerSession } from "#auth";
-import { BookReqBody } from "~/types";
 import { Book } from "~/server/models/book.model";
+import { validateRequest, borrowReturnSchema } from "~/server/utils/validation";
 
 export default defineEventHandler(async (event) => {
   const session = await getServerSession(event);
   if (!session) {
-    return { status: 401, message: "unauthenticated" };
+    throw createError({
+      statusCode: 401,
+      statusMessage: "Authentication required"
+    });
   }
 
-  const body: BookReqBody = await readBody(event);
+  // Validate request body
+  const body = await validateRequest(event, borrowReturnSchema);
   const bookIds = body.books.map(({ book }) => book);
 
-  const user = await User.findOneAndUpdate(
+  // Check if user actually has these books checked out
+  const user = await User.findOne({ email: session.user?.email });
+  if (!user) {
+    throw createError({
+      statusCode: 404,
+      statusMessage: "User not found"
+    });
+  }
+
+  const checkedOutBookIds = user.checked_out.map(item => item.book.toString());
+  const notBorrowed = bookIds.filter(id => !checkedOutBookIds.includes(id));
+  
+  if (notBorrowed.length > 0) {
+    // Get book titles for better error message
+    const books = await Book.find({ _id: { $in: notBorrowed } });
+    const titles = books.map(book => book.title);
+    throw createError({
+      statusCode: 400,
+      statusMessage: `You don't have the following books checked out: ${titles.join(', ')}`
+    });
+  }
+
+  // Process the return
+  const updatedUser = await User.findOneAndUpdate(
     { email: session.user?.email },
     {
       $push: { history: { $each: body.books } },
@@ -26,5 +53,9 @@ export default defineEventHandler(async (event) => {
     { $inc: { checked_out: -1 } }
   );
 
-  return user;
+  return {
+    success: true,
+    message: `Successfully returned ${body.books.length} book(s)`,
+    user: updatedUser
+  };
 });

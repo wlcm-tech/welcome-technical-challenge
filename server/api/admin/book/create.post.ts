@@ -1,11 +1,17 @@
-import type { AdminMultiBookReqBody } from "~/types";
 import { Book } from "~/server/models/book.model";
+import { validateRequest, createBooksSchema } from "~/server/utils/validation";
 
 // Endpoint protected by /server/middleware/admin-only.ts
 export default defineEventHandler(async (event) => {
-  const { books }: AdminMultiBookReqBody = await readBody(event);
+  // Validate request body
+  const { books } = await validateRequest(event, createBooksSchema);
 
-  const newBook = await Book.create(books[0]);
+  // Create all books (not just the first one)
+  const createdBooks = await Book.insertMany(books);
 
-  return newBook;
+  return {
+    success: true,
+    message: `Successfully created ${createdBooks.length} book(s)`,
+    books: createdBooks
+  };
 });

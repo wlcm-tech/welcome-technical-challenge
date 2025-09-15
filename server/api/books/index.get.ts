@@ -1,11 +1,13 @@
 import { BOOK_PAGE_SIZE } from "~/constants";
 import { Book } from "~~/server/models/book.model";
+import { validateRequest, searchQuerySchema } from "~/server/utils/validation";
 
 export default defineEventHandler(async (event) => {
-  const query = getQuery(event);
+  // Validate query parameters
+  const validatedQuery = await validateRequest(event, searchQuerySchema, 'query');
 
-  const genreRegex = query.genres
-    ? (query.genres as string).replaceAll(",", "|")
+  const genreRegex = validatedQuery.genres
+    ? validatedQuery.genres.replaceAll(",", "|")
     : "";
   const filterByGenreObject = genreRegex
     ? {
@@ -13,29 +15,42 @@ export default defineEventHandler(async (event) => {
       }
     : {};
 
-  const searchObject = query.term
-    ? { $text: { $search: query.term as string } }
+  const searchObject = validatedQuery.term
+    ? { $text: { $search: validatedQuery.term } }
     : {};
 
-  const sortObject = query.sortBy
+  const sortObject = validatedQuery.sortBy
     ? {
         sort: {
-          [query.sortBy as string]: query.sort,
+          [validatedQuery.sortBy]: validatedQuery.sort || 'asc',
         },
       }
     : {};
 
-  const books = await Book.find(
-    { ...searchObject, ...filterByGenreObject },
-    { description: 0, categories: 0, num_pages: 0, ratings_count: 0 }, // exclude fields
-    {
-      skip: (query.skip as number) || 0,
-      limit: (query.limit as number) || BOOK_PAGE_SIZE,
-      ...sortObject,
-    }
-  );
+  try {
+    const books = await Book.find(
+      { ...searchObject, ...filterByGenreObject },
+      { description: 0, categories: 0, num_pages: 0, ratings_count: 0 }, // exclude fields
+      {
+        skip: validatedQuery.skip,
+        limit: validatedQuery.limit,
+        ...sortObject,
+      }
+    );
 
-  const totalCount = await Book.countDocuments(searchObject);
+    const totalCount = await Book.countDocuments({ ...searchObject, ...filterByGenreObject });
 
-  return { books, total: totalCount };
+    return { 
+      success: true,
+      books, 
+      total: totalCount,
+      skip: validatedQuery.skip,
+      limit: validatedQuery.limit
+    };
+  } catch (error) {
+    throw createError({
+      statusCode: 500,
+      statusMessage: "Failed to fetch books"
+    });
+  }
 });

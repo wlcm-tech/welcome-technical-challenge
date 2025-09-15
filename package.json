@@ -23,7 +23,8 @@
     "vite-plugin-vuetify": "^2.0.3",
     "vue": "^3.4.21",
     "vue-router": "^4.3.0",
-    "vuetify": "^3.4.0-beta.1"
+    "vuetify": "^3.4.0-beta.1",
+    "zod": "^4.1.8"
   },
   "devDependencies": {
     "@pinia-plugin-persistedstate/nuxt": "^1.2.0",
