@@ -1,19 +1,31 @@
 import { User } from "~~/server/models/user.model";
 import { getServerSession } from "#auth";
+import { withErrorHandler, successResponse, tryAsync, ErrorMessages, AppError } from "~/server/utils/error-handler";
 
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(withErrorHandler(async (event) => {
   const session = await getServerSession(event);
   if (!session) {
-    return { status: 401, message: "unauthenticated" };
+    throw new AppError(ErrorMessages.UNAUTHORIZED, 401);
   }
 
-  const user = await User.findOne(
-    { email: session.user?.email },
-    { checked_out: 0 },
-    {}
+  const user = await tryAsync(
+    () => User.findOne(
+      { email: session.user?.email },
+      { checked_out: 0 }
+    ).populate("history.book"),
+    ErrorMessages.DATABASE_ERROR
   );
 
-  await user?.populate("history.book");
+  if (!user) {
+    // Create user if doesn't exist
+    return successResponse(
+      { history: [] },
+      'No borrowing history found'
+    );
+  }
 
-  return user;
-});
+  return successResponse(
+    user,
+    'Borrowing history fetched successfully'
+  );
+}));
